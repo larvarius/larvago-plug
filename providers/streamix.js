@@ -1,37 +1,25 @@
-class StreamixProvider {
-  constructor() {
-    this.name = 'Streamix';
-    this.apiUrl = 'https://stream-vault-two-phi.vercel.app/api/v1/embed-serve';
-  }
+// providers/streamix.js
+const STREAMIX_API = 'https://stream-vault-two-phi.vercel.app/api/v1/embed-serve';
 
-  async getStreams(id, type, season, episode) {
-    let url;
-    if (type === 'movie') {
-      url = `${this.apiUrl}?type=movie&id=${id}`;
+async function getStreams(tmdbId, mediaType, season, episode) {
+    let apiUrl;
+    if (mediaType === "movie") {
+        apiUrl = `${STREAMIX_API}?type=movie&id=${tmdbId}`;
     } else {
-      url = `${this.apiUrl}?type=tv&id=${id}&season=${season}&episode=${episode}`;
+        apiUrl = `${STREAMIX_API}?type=tv&id=${tmdbId}&season=${season}&episode=${episode}`;
     }
     
-    try {
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success && data.data.sources) {
-        // Convertir las fuentes de Streamix al formato que Nuvio espera
-        return data.data.sources.map(source => ({
-          name: `Streamix (${source.playbackType || 'auto'})`,
-          url: source.url,
-          behaviorHints: {
-            notWebReady: false  // Es un video directo, no una página web
-          }
+    const response = await fetch(apiUrl);
+    const data = await response.json();
+    
+    if (data.success && data.data.sources) {
+        return data.data.sources.map(s => ({
+            name: "Streamix",
+            url: s.url,
+            headers: { "User-Agent": "Mozilla/5.0" }
         }));
-      }
-    } catch (error) {
-      console.error('Error fetching from Streamix:', error);
     }
-    
     return [];
-  }
 }
 
-module.exports = StreamixProvider;
+module.exports = { getStreams };module.exports = StreamixProvider;
