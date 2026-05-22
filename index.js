@@ -1,31 +1,44 @@
-const express = require('express');
-const StreamixProvider = require('./providers/streamix');
+const STREAMIX_API = 'https://stream-vault-two-phi.vercel.app/api/v1/embed-serve';
 
-const app = express();
-const port = process.env.PORT || 3000;
-const streamixProvider = new StreamixProvider();
+/**
+ * Obtiene las fuentes de streaming desde la API de Streamix.
+ * @param {string} tmdbId - El ID de la película o serie en TMDB.
+ * @param {string} mediaType - El tipo de contenido: "movie" o "tv".
+ * @param {number} season - El número de temporada (para series).
+ * @param {number} episode - El número de episodio (para series).
+ * @returns {Promise<Array>} Una promesa que resuelve en un array de fuentes de video.
+ */
+async function getStreams(tmdbId, mediaType, season, episode) {
+    let apiUrl;
+    if (mediaType === "movie") {
+        apiUrl = `${STREAMIX_API}?type=movie&id=${tmdbId}`;
+    } else {
+        apiUrl = `${STREAMIX_API}?type=tv&id=${tmdbId}&season=${season}&episode=${episode}`;
+    }
 
-app.get('/manifest.json', (req, res) => {
-    res.json({
-        id: "org.larvago.streamix",
-        name: "LarvaGo Streamix",
-        description: "Addon que usa Streamix para Nuvio",
-        version: "1.0.0",
-        resources: ["stream"],
-        types: ["movie", "series"],
-        idPrefixes: ["tt", "tmdb"]
-    });
-});
+    try {
+        console.log(`[Streamix] Fetching: ${apiUrl}`);
+        const response = await fetch(apiUrl);
+        const data = await response.json();
 
-app.get('/stream/:type/:id', async (req, res) => {
-    const { type, id } = req.params;
-    const season = parseInt(req.query.season) || 1;
-    const episode = parseInt(req.query.episode) || 1;
-    
-    const streams = await streamixProvider.getStreams(id, type, season, episode);
-    res.json({ streams });
-});
+        if (data.success && data.data && data.data.sources) {
+            console.log(`[Streamix] Found ${data.data.sources.length} sources.`);
+            // Mapeamos las fuentes al formato que Nuvio entiende.
+            return data.data.sources.map(s => ({
+                name: `Streamix (${s.playbackType || 'auto'})`,
+                url: s.url,
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+            }));
+        } else {
+            console.log(`[Streamix] No sources found.`);
+            return [];
+        }
+    } catch (error) {
+        console.error(`[Streamix] Error: ${error.message}`);
+        return [];
+    }
+}
 
-app.listen(port, () => {
-    console.log(`Addon LarvaGo Streamix corriendo en puerto ${port}`);
-});
+module.exports = { getStreams };
