@@ -33,3 +33,4 @@ async function getStreams(tmdbId, type, season, episode) {
 }
 
 module.exports = { getStreams };
+ }
