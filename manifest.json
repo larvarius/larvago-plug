@@ -1,0 +1,10 @@
+{
+  "id": "org.larvago.vimeus",
+  "name": "LarvaGo Vimeus",
+  "description": "Addon que integra Vimeus con Nuvio",
+  "version": "1.0.0",
+  "resources": ["stream"],
+  "types": ["movie", "series"],
+  "catalogs": [],
+  "idPrefixes": ["tt", "tmdb"]
+}
