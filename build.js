@@ -1,62 +1,57 @@
-#!/usr/bin/env node
-const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
 
-const srcDir = path.join(__dirname, 'src');
-const outDir = path.join(__dirname, 'providers');
+const srcDir = 'src';
+const providersDir = 'providers';
 
-// Módulos externos que Nuvio provee (no los empaquetamos)
-const EXTERNAL_MODULES = ['cheerio', 'axios', 'crypto-js'];
-
-async function buildProvider(providerName) {
-  const entryPoint = path.join(srcDir, providerName, 'index.js');
-  const outFile = path.join(outDir, `${providerName}.js`);
-
-  if (!fs.existsSync(entryPoint)) {
-    console.warn(`⚠️  Saltando ${providerName}: no se encontró src/${providerName}/index.js`);
-    return false;
-  }
-
-  try {
-    await esbuild.build({
-      entryPoints: [entryPoint],
-      bundle: true,
-      outfile: outFile,
-      format: 'cjs',
-      platform: 'node',
-      target: 'es2020',
-      minify: false,
-      external: EXTERNAL_MODULES,
-      banner: { js: `/** ${providerName} - Built ${new Date().toISOString()} */` }
-    });
-    console.log(`✅ ${providerName}.js generado`);
-    return true;
-  } catch (err) {
-    console.error(`❌ Error en ${providerName}:`, err.message);
-    return false;
-  }
+if (!fs.existsSync(providersDir)) {
+  fs.mkdirSync(providersDir);
 }
 
-async function main() {
-  if (!fs.existsSync(srcDir)) {
-    console.error('❌ Error: No existe la carpeta "src". Crea src/<provider>/index.js');
-    process.exit(1);
-  }
+function processFile(filePath, relativePath) {
+  let content = fs.readFileSync(filePath, 'utf8');
 
-  const providers = fs.readdirSync(srcDir)
-    .filter(d => fs.statSync(path.join(srcDir, d)).isDirectory());
+  // Eliminar comentarios de línea y bloque
+  content = content.replace(/\/\/.*$/gm, '');
+  content = content.replace(/\/\*[\s\S]*?\*\//g, '');
 
-  if (providers.length === 0) {
-    console.log('No hay proveedores en src/. Crea una carpeta src/miproveedor/');
-    return;
-  }
+  // Envolver el contenido para que sea un módulo
+  const moduleName = relativePath.replace(/\.js$/, '').replace(/\//g, '_');
+  const wrapper = `
+    (function() {
+      const module = { exports: {} };
+      const exports = module.exports;
+      
+      ${content}
+      
+      return module.exports;
+    })();
+  `;
 
-  console.log(`🚀 Construyendo ${providers.length} proveedor(es)...`);
-  
-  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-
-  for (const p of providers) await buildProvider(p);
+  const outputPath = path.join(providersDir, `${moduleName}.js`);
+  fs.writeFileSync(outputPath, wrapper);
+  console.log(`Generado: ${outputPath}`);
 }
 
-main();
+function walkDir(dir) {
+  const files = fs.readdirSync(dir);
+  files.forEach(file => {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      walkDir(filePath);
+    } else if (file.endsWith('.js')) {
+      const relativePath = path.relative(srcDir, filePath);
+      if (!relativePath.includes('index.js') || !fs.existsSync(path.join(filePath, 'index.js'))) {
+         processFile(filePath, relativePath);
+      }
+    }
+  });
+}
+
+if (fs.existsSync(srcDir)) {
+  walkDir(srcDir);
+  console.log('Build completado con éxito.');
+} else {
+  console.error('La carpeta src no existe.');
+}
