@@ -1,11 +1,11 @@
 {
-  "name": "LarvaGo Providers",
+  "name": "LarvaGo Streamix Providers",
   "version": "1.0.0",
   "scrapers": [
     {
       "id": "streamix",
-      "name": "Streamix para LarvaGo",
-      "description": "Reproduce películas y series usando Streamix.",
+      "name": "Streamix",
+      "description": "Películas y series en Español Latino desde Streamix. Enlaces directos HLS/MP4.",
       "version": "1.0.0",
       "author": "LarvaGo",
       "supportedTypes": ["movie", "tv"],
