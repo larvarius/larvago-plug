@@ -1,15 +1,39 @@
 {
-  "name": "LarvaGo Streamix Providers",
-  "version": "1.0.0",
+  "name": "Nuvio Latino Hub Providers",
+  "version": "1.5.0",
   "scrapers": [
     {
-      "id": "streamix",
-      "name": "Streamix",
-      "description": "Películas y series en Español Latino desde Streamix. Enlaces directos HLS/MP4.",
-      "version": "1.0.0",
-      "author": "LarvaGo",
+      "id": "doramasflix",
+      "name": "DoramasFlix",
+      "description": "Doramas Coreanos, Chinos, Japoneses y Asiaticos en Espanol. Estructura oficial Nuvio con extracción múltiple.",
+      "version": "1.2.0",
+      "author": "Kokuuuuuun",
       "supportedTypes": ["movie", "tv"],
-      "filename": "providers/streamix.js",
+      "filename": "providers/doramasflix.js",
+      "enabled": true,
+      "contentLanguage": ["es"],
+      "formats": ["m3u8", "mp4"]
+    },
+    {
+      "id": "vimeus",
+      "name": "Vimeus",
+      "description": "Películas, series y anime en Latino/Español vía Vimeus. Múltiples servidores (VOE, StreamWish, Filemoon, etc).",
+      "version": "1.0.1",
+      "author": "Kokuuuuuun",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "providers/vimeus.js",
+      "enabled": true,
+      "contentLanguage": ["es"],
+      "formats": ["m3u8", "mp4"]
+    },
+    {
+      "id": "unlimplay",
+      "name": "Unlimplay",
+      "description": "Películas y series en Latino/Español vía Unlimplay. API directa basada en TMDB.",
+      "version": "1.0.0",
+      "author": "Kokuuuuuun",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "providers/unlimplay.js",
       "enabled": true,
       "contentLanguage": ["es"],
       "formats": ["m3u8", "mp4"]
