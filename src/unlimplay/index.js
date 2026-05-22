@@ -1,14 +1,10 @@
-/**
- * Unlimplay Provider for Nuvio
- * Estructura: src/unlimplay/index.js
- */
 const axios = require('axios');
 const cheerio = require('cheerio');
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const BASE_URL = "https://unlimplay.com";
 
-// Función auxiliar para desencriptar código obfuscado (mismo patrón que en Vimeus)
+// Función para desencriptar código obfuscado (común en estos sitios)
 function unpackEval(packed, radix, symtab) {
   const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const unbase = (str) => {
@@ -28,13 +24,55 @@ function unpackEval(packed, radix, symtab) {
 }
 
 async function getStreams(tmdbId, mediaType, season, episode) {
-  console.log(`[Unlimplay] Request: ${mediaType} ID: ${tmdbId} S${season || 0}E${episode || 0}`);
+  console.log(`[Unlimplay] Pidiendo: ${mediaType} ID: ${tmdbId} S${season || 0}E${episode || 0}`);
   
   let embedUrl;
   if (mediaType === "movie") {
     embedUrl = `${BASE_URL}/play/embed/movie/${tmdbId}`;
   } else {
-    if (!season || !episode) {
+    if (!season || !episode) return [];
+    embedUrl = `${BASE_URL}/play/embed/tv/${tmdbId}/${season}/${episode}`;
+  }
+
+  try {
+    const { data: html } = await axios.get(embedUrl, {
+      headers: { "User-Agent": UA, "Referer": BASE_URL + "/" }
+    });
+
+    const streams = [];
+
+    // 1. Buscar m3u8 directo
+    const m3u8Direct = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
+    if (m3u8Direct) {
+      streams.push({ name: "Unlimplay", title: "Unlimplay [Direct]", url: m3u8Direct, quality: "1080p", headers: { "User-Agent": UA, "Referer": BASE_URL + "/" } });
+      return streams;
+    }
+
+    // 2. Buscar en código obfuscado
+    const evalMatch = html.match(/eval\(function\(p,a,c,k,e,[rd]\)[\s\S]*?\.split\('\|'\)[^\)]*\)\)/);
+    if (evalMatch) {
+      const unpacked = unpackEval(evalMatch, 36, evalMatch.split("|"));
+      const m3u8Packed = unpacked.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
+      if (m3u8Packed) {
+        streams.push({ name: "Unlimplay", title: "Unlimplay [Unpacked]", url: m3u8Packed, quality: "1080p", headers: { "User-Agent": UA, "Referer": BASE_URL + "/" } });
+        return streams;
+      }
+      const fileMatch = unpacked.match(/["']file["']\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i);
+      if (fileMatch) {
+        streams.push({ name: "Unlimplay", title: "Unlimplay [File]", url: fileMatch, quality: "1080p", headers: { "User-Agent": UA, "Referer": BASE_URL + "/" } });
+        return streams;
+      }
+    }
+
+    console.log("[Unlimplay] No se encontró stream.");
+    return streams;
+  } catch (err) {
+    console.error(`[Unlimplay] Error: ${err.message}`);
+    return [];
+  }
+}
+
+module.exports = { getStreams };    if (!season || !episode) {
       console.error("[Unlimplay] Falta temporada o episodio");
       return [];
     }
