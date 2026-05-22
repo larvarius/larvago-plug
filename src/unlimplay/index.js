@@ -1,36 +1,24 @@
-const axios = require('axios');
-const UA = "Mozilla/5.0";
-const BASE_URL = "https://unlimplay.com";
-
-function unpackEval(p, a, c, k, e, d) {
-  const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const unbase = (str) => {
-    let r = 0;
-    for (let i = 0; i < str.length; i++) {
-      const pos = chars.indexOf(str[i]);
-      if (pos === -1) return NaN;
-      r = r * a + pos;
+const UnlimplayProvider = {
+  name: 'Unlimplay',
+  domain: 'unlimplay.com',
+  priority: 100,
+  
+  test: function(url) {
+    return /unlimplay\.com/.test(url) || /unlimplay\.net/.test(url);
+  },
+  
+  resolve: async function(url) {
+    try {
+      console.log('Resolviendo Unlimplay:', url);
+      
+      // Aquí iría la lógica para extraer el video
+      // Por ahora retornamos null
+      return null;
+    } catch (error) {
+      console.error('Error en Unlimplay:', error);
+      return null;
     }
-    return r;
-  };
-  return p.replace(/\b([0-9a-zA-Z]+)\b/g, (m) => {
-    const i = unbase(m);
-    return k[i] ? k[i] : m;
-  });
-}
+  }
+};
 
-async function getStreams(tmdbId, type, season, episode) {
-  let url = type === "movie" 
-    ? `${BASE_URL}/play/embed/movie/${tmdbId}` 
-    : `${BASE_URL}/play/embed/tv/${tmdbId}/${season}/${episode}`;
-
-  try {
-    const html = (await axios.get(url, { headers: { "User-Agent": UA } })).data;
-    const match = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
-    if (match) return [{ name: "Unlimplay", title: "Unlimplay", url: match, quality: "1080p", headers: { "User-Agent": UA } }];
-    return [];
-  } catch (e) { return []; }
-}
-
-module.exports = { getStreams };
- }
+module.exports = UnlimplayProvider;
