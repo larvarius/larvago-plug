@@ -1,11 +1,18 @@
 {
-  "name": "larva-go-addon",
+  "name": "larvago-streamix-providers",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Streamix provider for Nuvio",
   "scripts": {
-    "start": "node index.js"
+    "build": "node build.js",
+    "build:watch": "nodemon --watch src -e js,json --exec 'node build.js'"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "nodemon": "^3.0.0"
   },
   "dependencies": {
-    "express": "^4.18.2"
-  }
+    "axios": "^1.14.0"
+  },
+  "main": "build.js",
+  "type": "commonjs"
 }
