@@ -1,7 +1,7 @@
 {
-  "id": "org.larvago.vimeus",
-  "name": "LarvaGo Vimeus",
-  "description": "Addon que integra Vimeus con Nuvio",
+  "id": "org.larvago.streamix",
+  "name": "LarvaGo Streamix",
+  "description": "Addon que usa Streamix para Nuvio",
   "version": "1.0.0",
   "resources": ["stream"],
   "types": ["movie", "series"],
