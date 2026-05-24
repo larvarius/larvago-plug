@@ -12,25 +12,28 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         if (isTv && season) params.set("season", season);
         if (isTv && episode) params.set("episode", episode);
 
-        const res = await fetch(`${BASE}/api/v1/embed-serve?${params}`);
+        const res = await fetch(`${BASE}/api/v1/embed-serve?${params}`, {
+            headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Referer": `${BASE}/` }
+        });
         if (!res.ok) return [];
         const json = await res.json();
         if (!json.success || !json.data || !json.data.sources) return [];
 
+        const seen = new Set();
         const streams = [];
         for (const src of json.data.sources) {
-            if (!src.url) continue;
-            const isHls = src.playbackType === "hls";
-            streams.push({
-                name: `Streamix - ${src.name || "Source"}`,
-                url: src.url,
-                quality: "HD",
-                language: src.lang || "Latino",
-                behaviorHints: {
-                    notWebReady: !isHls,
-                    ...(isHls ? {} : { isEmbed: true })
-                }
-            });
+            if (!src.url || seen.has(src.url)) continue;
+            seen.add(src.url);
+
+            if (src.playbackType === "iframe") {
+                streams.push({
+                    name: `Streamix - ${src.name || "Embed"}`,
+                    url: src.url,
+                    quality: src.quality || "HD",
+                    language: src.lang || "Latino",
+                    behaviorHints: { notWebReady: true, isEmbed: true }
+                });
+            }
         }
 
         if (typeof __yield_result === "function") {
