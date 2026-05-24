@@ -1,40 +1,33 @@
 {
     "name": "larvago-addon",
     "version": "2.2.0",
-    "description": "Contenido en Español Latino para NuvioMobile con acceso directo IMDB",
+    "description": "Contenido en Español Latino para NuvioMobile",
     "scrapers": [
-               {
-            "id": "sololatino",
-            "name": "SoloLatino",
-            "description": "Latino - Servidores rápidos (Voe, Filemoon)",
-            "version": "1.1.2",
-            "author": "Larvarius",
-            "supportedTypes": [
-                "movie",
-                "tv"
-            ],
-            "filename": "providers/sololatino.js",
-            "enabled": true,
-            "logo": "https://sololatino.net/favicon.ico",
-            "contentLanguage": [
-                "es"
-            ]
-        },
-               {
-            "id": "allcalidad",
-            "name": "AllCalidad",
-            "description": "Nitro 1.0.0: Búsqueda Inteligente & Sniffing Auto ⚡",
+        {
+            "id": "unlimplay",
+            "name": "UnlimPlay",
+            "description": "Reproductor embed basado en TMDB - Latino",
             "version": "1.0.0",
             "author": "Larvarius",
-            "supportedTypes": [
-                "movie",
-                "tv"
-            ],
-            "filename": "providers/allcalidad.js",
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/unlimplay.js",
             "enabled": true,
             "embed": true,
-            "logo": "https://allcalidad.re/favicon.ico",
-            "contentLanguage": [
-                "es"
-            ]
+            "logo": "https://unlimplay.com/favicon.ico",
+            "contentLanguage": ["es"]
+        },
+        {
+            "id": "streamix",
+            "name": "Streamix",
+            "description": "11 proveedores HLS/Embed - API JSON directa",
+            "version": "1.0.0",
+            "author": "Larvarius",
+            "supportedTypes": ["movie", "tv"],
+            "filename": "providers/streamix.js",
+            "enabled": true,
+            "embed": true,
+            "logo": "https://stream-vault-two-phi.vercel.app/favicon.ico",
+            "contentLanguage": ["es"]
         }
+    ]
+}
