@@ -1,4 +1,3 @@
-const TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
 const BASE = "https://unlimplay.com";
 
 async function getStreams(tmdbId, mediaType, season, episode) {
@@ -9,35 +8,47 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         if (!cleanId || cleanId === "null" || cleanId === "undefined") return [];
 
         const isTv = !["movie", "film"].includes(String(mediaType).toLowerCase());
-        let embedUrl;
 
+        let apiPath;
         if (isTv && season && episode) {
-            embedUrl = `${BASE}/play/embed/tv/${cleanId}/${season}/${episode}`;
+            apiPath = `/play.php/embed/tv/${cleanId}/${season}/${episode}?api=1`;
         } else {
-            embedUrl = `${BASE}/play/embed/movie/${cleanId}`;
+            apiPath = `/play.php/embed/movie/${cleanId}?api=1`;
         }
 
-        const name = isTv ? "UnlimPlay TV" : "UnlimPlay";
+        const res = await fetch(`${BASE}${apiPath}`, {
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer": `${BASE}/`,
+                "Accept": "application/json"
+            }
+        });
+        if (!res.ok) return [];
+        const json = await res.json();
+        if (!json.success || !json.data || json.data.length === 0) return [];
 
-        if (typeof __yield_result === "function") {
-            const payload = JSON.stringify({
-                name,
-                url: embedUrl,
+        const streams = [];
+        for (const item of json.data) {
+            if (!item.embed_url) continue;
+            const lang = (item.language || "").toLowerCase();
+            const label = lang === "latino" ? "Latino" : lang === "espanol" ? "Español" : lang === "subtitulado" ? "Subtitulado" : item.language;
+            streams.push({
+                name: `UnlimPlay - ${label}`,
+                url: item.embed_url,
                 quality: "HD",
-                language: "Latino",
+                language: label,
                 behaviorHints: { notWebReady: true, isEmbed: true }
             });
-            __yield_result(payload);
-            if (typeof __native_sleep === "function") await __native_sleep(30);
         }
 
-        return [{
-            name,
-            url: embedUrl,
-            quality: "HD",
-            language: "Latino",
-            behaviorHints: { notWebReady: true, isEmbed: true }
-        }];
+        if (typeof __yield_result === "function") {
+            for (const s of streams) {
+                __yield_result(JSON.stringify(s));
+                if (typeof __native_sleep === "function") await __native_sleep(30);
+            }
+        }
+
+        return streams;
     } catch (e) {
         return [];
     }
