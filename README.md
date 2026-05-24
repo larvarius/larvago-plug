@@ -1,1 +1,1 @@
-# larvago-addon
+# larvago-plug
