@@ -1,23 +1,40 @@
 {
-  "name": "Larvago Addon Providers",
-  "version": "1.0.0",
-  "scrapers": [
-    {
-      "id": "unlimplay",
-      "name": "Unlimplay",
-      "description": "Películas y series vía Unlimplay (API TMDB)",
-      "version": "1.0.0",
-      "author": "Larvarius",
-      "supportedTypes": ["movie", "tv"],
-      "filename": "providers/unlimplay.js",
-      "enabled": true,
-      "contentLanguage": ["es"],
-      "formats": ["m3u8", "mp4"]
-    }
-  ]
-}      "enabled": true,
-      "contentLanguage": ["es"],
-      "formats": ["m3u8", "mp4"]
-    }
-  ]
-}
+    "name": "larvago-addon",
+    "version": "2.2.0",
+    "description": "Contenido en Español Latino para NuvioMobile con acceso directo IMDB",
+    "scrapers": [
+               {
+            "id": "sololatino",
+            "name": "SoloLatino",
+            "description": "Latino - Servidores rápidos (Voe, Filemoon)",
+            "version": "1.1.2",
+            "author": "Larvarius",
+            "supportedTypes": [
+                "movie",
+                "tv"
+            ],
+            "filename": "providers/sololatino.js",
+            "enabled": true,
+            "logo": "https://sololatino.net/favicon.ico",
+            "contentLanguage": [
+                "es"
+            ]
+        },
+               {
+            "id": "allcalidad",
+            "name": "AllCalidad",
+            "description": "Nitro 1.0.0: Búsqueda Inteligente & Sniffing Auto ⚡",
+            "version": "1.0.0",
+            "author": "Larvarius",
+            "supportedTypes": [
+                "movie",
+                "tv"
+            ],
+            "filename": "providers/allcalidad.js",
+            "enabled": true,
+            "embed": true,
+            "logo": "https://allcalidad.re/favicon.ico",
+            "contentLanguage": [
+                "es"
+            ]
+        }
