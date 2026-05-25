@@ -1,6 +1,6 @@
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-var crypto = require("crypto");
+var CryptoJS = typeof CryptoJS !== "undefined" ? CryptoJS : null;
 
 function fetchText(url) {
   return new Promise(function (resolve) {
@@ -49,33 +49,28 @@ function extractPOWConstants(html) {
 }
 
 function solvePoW(challenge, difficulty, salt) {
+  if (!CryptoJS) return null;
   var prefix = "";
   for (var p = 0; p < difficulty; p++) prefix += "0";
   var nonce = 0;
-  var aesKey = null;
   while (nonce < 100000) {
-    var shasum = crypto.createHash("sha256");
-    shasum.update(challenge + nonce, "utf8");
-    var hash = shasum.digest("hex");
+    var hash = CryptoJS.SHA256(challenge + nonce).toString(CryptoJS.enc.Hex);
     if (hash.indexOf(prefix) === 0) {
-      var ksum = crypto.createHash("sha256");
-      ksum.update(challenge + nonce + salt, "utf8");
-      aesKey = ksum.digest();
-      break;
+      return CryptoJS.SHA256(challenge + nonce + salt);
     }
     nonce++;
   }
-  return aesKey;
+  return null;
 }
 
 function decryptLink(link, aesKey) {
+  if (!CryptoJS || !link || !aesKey) return null;
   try {
-    var raw = Buffer.from(link, "base64");
-    var iv = raw.subarray(0, 16);
-    var ct = raw.subarray(16);
-    var decipher = crypto.createDecipheriv("aes-256-cbc", aesKey, iv);
-    var dec = Buffer.concat([decipher.update(ct), decipher.final()]);
-    return dec.toString("utf8");
+    var raw = CryptoJS.enc.Base64.parse(link);
+    var iv = CryptoJS.lib.WordArray.create(raw.words.slice(0, 4), 16);
+    var ct = CryptoJS.lib.WordArray.create(raw.words.slice(4), raw.sigBytes - 16);
+    var decrypted = CryptoJS.AES.decrypt({ ciphertext: ct }, aesKey, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+    return decrypted.toString(CryptoJS.enc.Utf8);
   } catch(e) { return null; }
 }
 
@@ -161,9 +156,13 @@ function resolveVidhide(url) {
   return new Promise(function (resolve) {
     fetch(url, { headers: { "User-Agent": UA, "Referer": "https://embed69.org/" } }).then(function (r) { return r.ok ? r.text() : null; }).then(function (html) {
       if (!html) { resolve(null); return; }
+      if (html.indexOf("window.location.href") !== -1 && html.length < 2000) {
+        var rm = html.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/i);
+        if (rm) { resolve(resolveVidhide(rm[1])["catch"](function () { return null; })); return; }
+      }
       var cs = html;
       if (html.indexOf("eval(function") !== -1) cs += "\n" + unpack(html);
-      var m3u8 = cs.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i) || cs.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
+      var m3u8 = cs.match(/(?:hls2|file|source|src|hls)\s*[:=]\s*["']([^"']+\.(?:m3u8|mp4)[^"']*)["']/i) || cs.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
       if (m3u8) { resolve({ url: m3u8[1] || m3u8[0], quality: "1080p", headers: { "User-Agent": UA, "Referer": new URL(url).origin + "/" } }); return; }
       resolve(null);
     }).catch(function () { resolve(null); });
