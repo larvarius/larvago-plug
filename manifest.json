@@ -4,29 +4,16 @@
     "description": "Contenido en Español Latino para NuvioMobile",
     "scrapers": [
         {
-            "id": "unlimplay",
-            "name": "UnlimPlay",
-            "description": "Reproductor embed basado en TMDB - Latino",
+            "id": "entrepelis",
+            "name": "EntrePeliculasySeries",
+            "description": "entrepeliculasyseries.nz - VOE/StreamWish/Filemoon/VidHide via embed69",
             "version": "1.0.0",
-            "author": "Larvarius",
+            "author": "AdrianJael",
             "supportedTypes": ["movie", "tv"],
-            "filename": "providers/unlimplay.js",
+            "filename": "providers/entrepelis.js",
             "enabled": true,
             "embed": true,
-            "logo": "https://unlimplay.com/favicon.ico",
-            "contentLanguage": ["es"]
-        },
-        {
-            "id": "streamix",
-            "name": "Streamix",
-            "description": "11 proveedores HLS/Embed - API JSON directa",
-            "version": "1.0.0",
-            "author": "Larvarius",
-            "supportedTypes": ["movie", "tv"],
-            "filename": "providers/streamix.js",
-            "enabled": true,
-            "embed": true,
-            "logo": "https://stream-vault-two-phi.vercel.app/favicon.ico",
+            "logo": "https://entrepeliculasyseries.nz/themes/torotaku/img/faviconen.png",
             "contentLanguage": ["es"]
         }
     ]
