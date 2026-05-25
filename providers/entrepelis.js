@@ -4,12 +4,14 @@ var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
 function normalize(str) {
     if (!str) return "";
-    return str.toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9 ]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    var s = str.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    try { s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch(e) {}
+    return s;
+}
+
+function slugify(title) {
+    if (!title) return "";
+    return normalize(title).replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 
 function cleanTitle(title) {
@@ -41,7 +43,7 @@ function searchSite(query) {
 function extractLinks(html) {
     var links = [];
     if (!html) return links;
-    var regex = /<a\s+href="(\/(?:pelicula|serie|anime)\/[^"]+)"[^>]*>[\s\S]*?<h4[^>]*class="title"[^>]*>([^<]+)<\/h4>[\s\S]*?<span[^>]*class="tag"[^>]*>(\d{4})<\/span>/gi;
+    var regex = /<a\s+href="(\/(?:pelicula|serie|anime)\/[^"]+)"[^>]*>[\s\S]*?<h2[^>]*class="title"[^>]*>([^<]+)<\/h2>[\s\S]*?<span[^>]*class="tag"[^>]*>(\d{4})<\/span>/gi;
     var match;
     while ((match = regex.exec(html)) !== null) {
         links.push({
@@ -60,6 +62,32 @@ function isMatch(postTitle, targetTitle, postYear, targetYear) {
     var yearMatch = postYear === targetYear || Math.abs(parseInt(postYear) - parseInt(targetYear)) <= 1;
     if (!yearMatch) return false;
     return pTitle.includes(tTitle) || tTitle.includes(pTitle);
+}
+
+function tryDirectUrl(title, year, mediaType) {
+    var prefix = mediaType === "movie" ? "pelicula" : "serie";
+    var slug = slugify(title);
+    var variants = [
+        BASE + "/" + prefix + "/" + slug,
+        BASE + "/" + prefix + "/" + slug + "-" + year,
+        BASE + "/pelicula/" + slug,
+        BASE + "/pelicula/" + slug + "-" + year,
+        BASE + "/serie/" + slug,
+        BASE + "/serie/" + slug + "-" + year
+    ];
+    var unique = [];
+    for (var i = 0; i < variants.length; i++) {
+        if (unique.indexOf(variants[i]) === -1) unique.push(variants[i]);
+    }
+    return unique;
+}
+
+function checkDirectUrl(url) {
+    return new Promise(function (resolve) {
+        fetch(url, { method: "HEAD", headers: { "User-Agent": UA } })
+            .then(function (r) { resolve(r.ok ? url : null); })
+            .catch(function () { resolve(null); });
+    });
 }
 
 function getStreams(tmdbId, mediaType, season, episode) {
@@ -82,8 +110,30 @@ function getStreams(tmdbId, mediaType, season, episode) {
                 var partTitle = title.split(/[:\-]/)[0].trim();
                 if (partTitle !== title) queries.push(partTitle);
 
+                var tryDirect = function () {
+                    var urls = tryDirectUrl(title, year, mediaType);
+                    var checkNext = function (idx) {
+                        if (idx >= urls.length) return resolve([]);
+                        checkDirectUrl(urls[idx]).then(function (validUrl) {
+                            if (validUrl) {
+                                var stream = {
+                                    name: "EPS - " + title,
+                                    url: validUrl,
+                                    quality: "HD",
+                                    language: "Latino",
+                                    behaviorHints: { notWebReady: true, isEmbed: true }
+                                };
+                                if (typeof __yield_result === "function") __yield_result(JSON.stringify(stream));
+                                return resolve([stream]);
+                            }
+                            checkNext(idx + 1);
+                        }).catch(function () { checkNext(idx + 1); });
+                    };
+                    checkNext(0);
+                };
+
                 var searchNext = function (idx) {
-                    if (idx >= queries.length) return resolve([]);
+                    if (idx >= queries.length) return tryDirect();
                     searchSite(queries[idx]).then(function (html) {
                         if (!html) return searchNext(idx + 1);
                         var links = extractLinks(html);
@@ -97,9 +147,7 @@ function getStreams(tmdbId, mediaType, season, episode) {
                                     language: "Latino",
                                     behaviorHints: { notWebReady: true, isEmbed: true }
                                 };
-                                if (typeof __yield_result === "function") {
-                                    __yield_result(JSON.stringify(stream));
-                                }
+                                if (typeof __yield_result === "function") __yield_result(JSON.stringify(stream));
                                 return resolve([stream]);
                             }
                         }
