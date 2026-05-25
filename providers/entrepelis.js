@@ -1,13 +1,10 @@
 var TMDB_API_KEY = "439c478a771f35c05022f9feabcca01c";
-var BASE = "https://embed69.org";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-var HEADERS = { "User-Agent": UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "es-MX,es;q=0.9", "Referer": BASE + "/" };
+var crypto = require("crypto");
 
 function fetchText(url) {
   return new Promise(function (resolve) {
-    var h = {};
-    for (var k in HEADERS) h[k] = HEADERS[k];
-    fetch(url, { headers: h }).then(function (r) { return r.ok ? r.text() : null; }).catch(function () { resolve(null); });
+    fetch(url, { headers: { "User-Agent": UA }, skipSizeCheck: true }).then(function (r) { return r.ok ? r.text() : null; }).catch(function () { resolve(null); });
   });
 }
 
@@ -24,24 +21,62 @@ function safeAtob(input) {
 }
 
 function extractDataLink(html) {
-  if (!html) return [];
+  if (!html) return null;
   var start = html.indexOf("let dataLink = ");
-  if (start === -1) return [];
+  if (start === -1) start = html.indexOf("dataLink = ");
+  if (start === -1) return null;
   start = html.indexOf("[", start);
-  if (start === -1) return [];
+  if (start === -1) return null;
   var depth = 1, i = start + 1;
   while (i < html.length && depth > 0) {
     if (html[i] === "[") depth++;
     else if (html[i] === "]") depth--;
     i++;
   }
-  if (depth !== 0) return [];
-  try { return JSON.parse(html.substring(start, i)); } catch(e) { return []; }
+  if (depth !== 0) return null;
+  try { return JSON.parse(html.substring(start, i)); } catch(e) { return null; }
 }
 
-function extractOrigin(url) {
-  var m = url.match(/^(https?:\/\/[^\/]+)/);
-  return m ? m[1] : "";
+function extractPOWConstants(html) {
+  var challenge = null, difficulty = null, salt = null;
+  var m = html.match(/const\s+POW_CHALLENGE\s*=\s*['"]([^'"]+)['"]/);
+  if (m) challenge = m[1];
+  m = html.match(/const\s+POW_DIFFICULTY\s*=\s*(\d+)/);
+  if (m) difficulty = parseInt(m[1]);
+  m = html.match(/const\s+POW_SALT\s*=\s*['"]([^'"]+)['"]/);
+  if (m) salt = m[1];
+  return challenge && difficulty && salt ? { challenge: challenge, difficulty: difficulty, salt: salt } : null;
+}
+
+function solvePoW(challenge, difficulty, salt) {
+  var prefix = "";
+  for (var p = 0; p < difficulty; p++) prefix += "0";
+  var nonce = 0;
+  var aesKey = null;
+  while (nonce < 100000) {
+    var shasum = crypto.createHash("sha256");
+    shasum.update(challenge + nonce, "utf8");
+    var hash = shasum.digest("hex");
+    if (hash.indexOf(prefix) === 0) {
+      var ksum = crypto.createHash("sha256");
+      ksum.update(challenge + nonce + salt, "utf8");
+      aesKey = ksum.digest();
+      break;
+    }
+    nonce++;
+  }
+  return aesKey;
+}
+
+function decryptLink(link, aesKey) {
+  try {
+    var raw = Buffer.from(link, "base64");
+    var iv = raw.subarray(0, 16);
+    var ct = raw.subarray(16);
+    var decipher = crypto.createDecipheriv("aes-256-cbc", aesKey, iv);
+    var dec = Buffer.concat([decipher.update(ct), decipher.final()]);
+    return dec.toString("utf8");
+  } catch(e) { return null; }
 }
 
 function unpack(code) {
@@ -129,7 +164,7 @@ function resolveVidhide(url) {
       var cs = html;
       if (html.indexOf("eval(function") !== -1) cs += "\n" + unpack(html);
       var m3u8 = cs.match(/(?:file|source|src|hls)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']/i) || cs.match(/https?:\/\/[^"'\s\\]+\.m3u8[^"'\s\\]*/i);
-      if (m3u8) { resolve({ url: m3u8[1] || m3u8[0], quality: "1080p", headers: { "User-Agent": UA, "Referer": extractOrigin(url) + "/" } }); return; }
+      if (m3u8) { resolve({ url: m3u8[1] || m3u8[0], quality: "1080p", headers: { "User-Agent": UA, "Referer": new URL(url).origin + "/" } }); return; }
       resolve(null);
     }).catch(function () { resolve(null); });
   });
@@ -164,11 +199,17 @@ function getStreams(tmdbId, mediaType, season, episode) {
           urlId = imdbId + "-" + s + "x" + (e < 10 ? "0" + e : e);
         }
 
-        fetchText(BASE + "/f/" + urlId).then(function (html) {
+        fetchText("https://embed69.org/f/" + urlId).then(function (html) {
           if (!html) return resolve([]);
 
           var dataLink = extractDataLink(html);
-          if (dataLink.length === 0) return resolve([]);
+          if (!dataLink || dataLink.length === 0) return resolve([]);
+
+          var pow = extractPOWConstants(html);
+          if (!pow) return resolve([]);
+
+          var aesKey = solvePoW(pow.challenge, pow.difficulty, pow.salt);
+          if (!aesKey) return resolve([]);
 
           var lat = null;
           for (var i = 0; i < dataLink.length; i++) {
@@ -183,18 +224,12 @@ function getStreams(tmdbId, mediaType, season, episode) {
           for (var j = 0; j < embeds.length; j++) {
             (function (embed) {
               if (!embed.link || embed.servername === "download") { pending++; checkDone(); return; }
-              var parts = embed.link.split(".");
-              if (parts.length < 2) { pending++; checkDone(); return; }
-              var payloadStr = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-              var jsonStr = safeAtob(payloadStr);
-              if (!jsonStr) { pending++; checkDone(); return; }
-              var payload;
-              try { payload = JSON.parse(jsonStr); } catch(e) { pending++; checkDone(); return; }
-              if (!payload || !payload.link) { pending++; checkDone(); return; }
+
+              var embedUrl = decryptLink(embed.link, aesKey);
+              if (!embedUrl) { pending++; checkDone(); return; }
 
               pending++;
               var sName = embed.servername.toLowerCase();
-              var embedUrl = payload.link;
               var resolver = null;
 
               if (sName === "voe") resolver = resolveVoe;
