@@ -39,17 +39,21 @@ function extractPowConstants(html) {
     return { challenge: challenge, difficulty: difficulty, salt: salt };
 }
 
+var POW_MAX_ITERATIONS = 50000;
+var DECRYPT_KEY_FALLBACK = "558e4d18ca7c0be131e1b406bb47ea79b6ea9444e93bf3315fc62484044c150b";
 function solvePow(challenge, difficulty, salt) {
     var prefix = "";
     for (var z = 0; z < difficulty; z++) prefix += "0";
     var nonce = 0;
-    while (true) {
+    while (nonce < POW_MAX_ITERATIONS) {
         var hash = CryptoJS.SHA256(challenge + nonce).toString(CryptoJS.enc.Hex);
-        if (hash.indexOf(prefix) === 0) break;
+        if (hash.indexOf(prefix) === 0) {
+            var keyHash = CryptoJS.SHA256(challenge + nonce + salt).toString(CryptoJS.enc.Hex);
+            return keyHash;
+        }
         nonce++;
     }
-    var keyHash = CryptoJS.SHA256(challenge + nonce + salt).toString(CryptoJS.enc.Hex);
-    return keyHash;
+    return DECRYPT_KEY_FALLBACK;
 }
 
 function aesDecrypt(enc, keyHex) {
@@ -181,11 +185,17 @@ function resolveFilemoon(url) {
 }
 
 var FILEMOON_DOMAINS = ["filemoon.sx", "filemoon.to", "filemoon.eu", "bysedikamoum.com", "smybutn.com", "gstorege.com"];
+function isFilemoon(url) {
+    var u = url.toLowerCase();
+    if (u.indexOf("filemoon") !== -1) return true;
+    for (var i = 0; i < FILEMOON_DOMAINS.length; i++) { if (u.indexOf(FILEMOON_DOMAINS[i]) !== -1) return true; }
+    return false;
+}
 function resolveServer(url) {
     var u = url.toLowerCase();
     if (u.indexOf("voe") !== -1) return resolveVoe(url);
     if (u.indexOf("streamwish") !== -1 || u.indexOf("hlswish") !== -1 || u.indexOf("hglink") !== -1 || u.indexOf("flaswish") !== -1) return resolveStreamwish(url);
-    if (u.indexOf("filemoon") !== -1 || FILEMOON_DOMAINS.some(function (d) { return u.indexOf(d) !== -1; })) return resolveFilemoon(url);
+    if (isFilemoon(u)) return resolveFilemoon(url);
     if (u.indexOf("vidhide") !== -1 || u.indexOf("minochinos") !== -1 || u.indexOf("do7go") !== -1) return resolveVidhide(url);
     return new Promise(function (r) { r(null); });
 }
