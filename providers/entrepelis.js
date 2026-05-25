@@ -14,11 +14,6 @@ function slugify(title) {
     return normalize(title).replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 
-function cleanTitle(title) {
-    if (!title) return "";
-    return title.replace(/\(\d{4}\)/g, "").trim();
-}
-
 function getTmdbData(tmdbId, mediaType) {
     return new Promise(function (resolve) {
         var type = mediaType === "movie" ? "movie" : "tv";
@@ -40,44 +35,63 @@ function searchSite(query) {
     });
 }
 
+function fetchPage(url) {
+    return new Promise(function (resolve) {
+        fetch(url, { headers: { "User-Agent": UA } })
+            .then(function (r) { return r.ok ? r.text() : null; })
+            .then(function (html) { resolve(html); })
+            .catch(function () { resolve(null); });
+    });
+}
+
 function extractLinks(html) {
     var links = [];
     if (!html) return links;
     var regex = /<a\s+href="(\/(?:pelicula|serie|anime)\/[^"]+)"[^>]*>[\s\S]*?<h2[^>]*class="title"[^>]*>([^<]+)<\/h2>[\s\S]*?<span[^>]*class="tag"[^>]*>(\d{4})<\/span>/gi;
     var match;
     while ((match = regex.exec(html)) !== null) {
-        links.push({
-            href: match[1],
-            title: match[2].trim(),
-            year: match[3]
-        });
+        links.push({ href: match[1], title: match[2].trim(), year: match[3] });
     }
     return links;
 }
 
 function isMatch(postTitle, targetTitle, postYear, targetYear) {
-    var pTitle = normalize(cleanTitle(postTitle));
+    var pTitle = normalize(postTitle.replace(/\(\d{4}\)/g, "").trim());
     var tTitle = normalize(targetTitle);
     if (!pTitle || !tTitle) return false;
-    var yearMatch = postYear === targetYear || Math.abs(parseInt(postYear) - parseInt(targetYear)) <= 1;
-    if (!yearMatch) return false;
+    if (postYear !== targetYear && Math.abs(parseInt(postYear) - parseInt(targetYear)) > 1) return false;
     return pTitle.includes(tTitle) || tTitle.includes(pTitle);
 }
 
+function extractIframe(html) {
+    if (!html) return null;
+    var m = html.match(/<iframe[^>]*src="(\/vidurl\/[^"]+)"/i);
+    return m ? m[1] : null;
+}
+
+function extractServers(html) {
+    var servers = [];
+    if (!html) return servers;
+    var regex = /"servername"\s*:\s*"([^"]+)"/g;
+    var match;
+    while ((match = regex.exec(html)) !== null) {
+        var name = match[1];
+        if (name && servers.indexOf(name) === -1) servers.push(name);
+    }
+    return servers;
+}
+
 function tryDirectUrl(title, year, mediaType) {
-    var prefix = mediaType === "movie" ? "pelicula" : "serie";
     var slug = slugify(title);
-    var variants = [
-        BASE + "/" + prefix + "/" + slug,
-        BASE + "/" + prefix + "/" + slug + "-" + year,
-        BASE + "/pelicula/" + slug,
-        BASE + "/pelicula/" + slug + "-" + year,
-        BASE + "/serie/" + slug,
-        BASE + "/serie/" + slug + "-" + year
-    ];
+    var urls = [];
+    var prefixes = ["pelicula", "serie"];
+    for (var p = 0; p < prefixes.length; p++) {
+        urls.push(BASE + "/" + prefixes[p] + "/" + slug);
+        urls.push(BASE + "/" + prefixes[p] + "/" + slug + "-" + year);
+    }
     var unique = [];
-    for (var i = 0; i < variants.length; i++) {
-        if (unique.indexOf(variants[i]) === -1) unique.push(variants[i]);
+    for (var i = 0; i < urls.length; i++) {
+        if (unique.indexOf(urls[i]) === -1) unique.push(urls[i]);
     }
     return unique;
 }
@@ -89,6 +103,15 @@ function checkDirectUrl(url) {
             .catch(function () { resolve(null); });
     });
 }
+
+var SERVER_NAMES = {
+    "voe": "VOE",
+    "streamwish": "StreamWish",
+    "filemoon": "Filemoon",
+    "vidhide": "VidHide",
+    "doodstream": "DoodStream",
+    "rapidvideo": "RapidVideo"
+};
 
 function getStreams(tmdbId, mediaType, season, episode) {
     return new Promise(function (resolve) {
@@ -110,51 +133,95 @@ function getStreams(tmdbId, mediaType, season, episode) {
                 var partTitle = title.split(/[:\-]/)[0].trim();
                 if (partTitle !== title) queries.push(partTitle);
 
-                var tryDirect = function () {
+                var foundPage = null;
+
+                var tryDirect = function (cb) {
                     var urls = tryDirectUrl(title, year, mediaType);
                     var checkNext = function (idx) {
-                        if (idx >= urls.length) return resolve([]);
+                        if (idx >= urls.length) return cb(null);
                         checkDirectUrl(urls[idx]).then(function (validUrl) {
-                            if (validUrl) {
-                                var stream = {
-                                    name: "EPS - " + title,
-                                    url: validUrl,
-                                    quality: "HD",
-                                    language: "Latino",
-                                    behaviorHints: { notWebReady: true, isEmbed: true }
-                                };
-                                if (typeof __yield_result === "function") __yield_result(JSON.stringify(stream));
-                                return resolve([stream]);
-                            }
+                            if (validUrl) return cb(validUrl);
                             checkNext(idx + 1);
                         }).catch(function () { checkNext(idx + 1); });
                     };
                     checkNext(0);
                 };
 
-                var searchNext = function (idx) {
-                    if (idx >= queries.length) return tryDirect();
+                var searchNext = function (idx, cb) {
+                    if (idx >= queries.length) return cb(null);
                     searchSite(queries[idx]).then(function (html) {
-                        if (!html) return searchNext(idx + 1);
+                        if (!html) return searchNext(idx + 1, cb);
                         var links = extractLinks(html);
                         for (var i = 0; i < links.length; i++) {
                             if (isMatch(links[i].title, title, links[i].year, year)) {
-                                var pageUrl = BASE + links[i].href;
-                                var stream = {
-                                    name: "EPS - " + links[i].title,
+                                return cb(BASE + links[i].href);
+                            }
+                        }
+                        searchNext(idx + 1, cb);
+                    }).catch(function () { searchNext(idx + 1, cb); });
+                };
+
+                var emitStreams = function (pageUrl) {
+                    if (!pageUrl) return resolve([]);
+                    fetchPage(pageUrl).then(function (html) {
+                        if (!html) return resolve([]);
+                        var iframePath = extractIframe(html);
+                        if (!iframePath) return resolve([]);
+                        var embedUrl = BASE + iframePath;
+
+                        fetchPage(embedUrl).then(function (embedHtml) {
+                            var servers = extractServers(embedHtml);
+                            var results = [];
+
+                            if (servers.length > 0) {
+                                for (var s = 0; s < servers.length; s++) {
+                                    var displayName = SERVER_NAMES[servers[s]] || servers[s].charAt(0).toUpperCase() + servers[s].slice(1);
+                                    var stream = {
+                                        name: "EPS - " + displayName,
+                                        url: embedUrl,
+                                        quality: "HD",
+                                        language: "Latino",
+                                        behaviorHints: { notWebReady: true, isEmbed: true }
+                                    };
+                                    if (typeof __yield_result === "function") __yield_result(JSON.stringify(stream));
+                                    results.push(stream);
+                                }
+                            }
+
+                            if (results.length === 0) {
+                                var fallback = {
+                                    name: "EPS",
                                     url: pageUrl,
                                     quality: "HD",
                                     language: "Latino",
                                     behaviorHints: { notWebReady: true, isEmbed: true }
                                 };
-                                if (typeof __yield_result === "function") __yield_result(JSON.stringify(stream));
-                                return resolve([stream]);
+                                if (typeof __yield_result === "function") __yield_result(JSON.stringify(fallback));
+                                results.push(fallback);
                             }
-                        }
-                        searchNext(idx + 1);
-                    }).catch(function () { searchNext(idx + 1); });
+
+                            resolve(results);
+                        }).catch(function () {
+                            var fallback = {
+                                name: "EPS",
+                                url: pageUrl,
+                                quality: "HD",
+                                language: "Latino",
+                                behaviorHints: { notWebReady: true, isEmbed: true }
+                            };
+                            if (typeof __yield_result === "function") __yield_result(JSON.stringify(fallback));
+                            resolve([fallback]);
+                        });
+                    }).catch(function () { resolve([]); });
                 };
-                searchNext(0);
+
+                searchNext(0, function (pageUrl) {
+                    if (pageUrl) return emitStreams(pageUrl);
+                    tryDirect(function (pageUrl) {
+                        if (pageUrl) return emitStreams(pageUrl);
+                        resolve([]);
+                    });
+                });
             }).catch(function () { resolve([]); });
         } catch (e) {
             resolve([]);
